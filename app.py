@@ -11,31 +11,14 @@ if not am.check_password():
 
 st.set_page_config(layout="wide", page_title="Project: CORE Simulator")
 
-# --- Custom CSS for Sidebar Spacing ---
-# サイドバーの余白を強制的に狭くするCSS
+# --- Custom CSS ---
 st.markdown("""
     <style>
-        /* サイドバー全体の余白を調整 */
-        section[data-testid="stSidebar"] .block-container {
-            padding-top: 1rem; /* 上部の余白を少し減らす */
-        }
-        /* タイトル(h1)の下の余白を減らす */
-        section[data-testid="stSidebar"] h1 {
-            margin-bottom: 0.5rem !important;
-        }
-        /* 横線(hr)の上下の余白を減らす */
-        section[data-testid="stSidebar"] hr {
-            margin-top: 0.5rem !important;
-            margin-bottom: 0.5rem !important;
-        }
-        /* 各要素間の垂直方向の隙間(gap)を減らす */
-        section[data-testid="stSidebar"] .stVerticalBlock > div {
-            gap: 0.5rem !important; /* デフォルトの1remから狭くする */
-        }
-        /* キャプションの下の余白も微調整 */
-        section[data-testid="stSidebar"] .stCaption {
-            margin-bottom: 0.2rem !important;
-        }
+        section[data-testid="stSidebar"] .block-container { padding-top: 1rem; }
+        section[data-testid="stSidebar"] h1 { margin-bottom: 0.5rem !important; }
+        section[data-testid="stSidebar"] hr { margin-top: 0.5rem !important; margin-bottom: 0.5rem !important; }
+        section[data-testid="stSidebar"] .stVerticalBlock > div { gap: 0.5rem !important; }
+        section[data-testid="stSidebar"] .stCaption { margin-bottom: 0.2rem !important; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -44,7 +27,7 @@ DEFAULTS = {
     'shape_type': 'Torus', 'R_base': 10.0, 'r_tube': 3.0, 'h_cylinder': 20.0,
     'outer_scale': 1.0, 'inner_scale': 0.95,
     'segments_main': 24.0, 'segments_sub': 18.0, 'smoothness': 100.0,
-    'bg_color': '#000000', 'show_bb': True, 'bb_shape': 'circle', 'bb_size': 10.0, 'bb_color': '#FFFF00',
+    'bg_color': '#000000', 'show_bb': True, 'bb_size': 10.0, 'bb_color': '#FFFF00', # bb_shapeは廃止(球体固定のため)
     'show_surf': True, 'surf_color': '#00A2E8', 'surf_opacity': 0.3,
     'outer_color': '#00A2E8', 'lw_outer': 1.2, 'inner_color': '#FFAEC9', 'lw_inner': 1.0,
     'wire_start': 0.0, 'wire_span': 360.0, 'surf_start': 0.0, 'surf_span': 270.0,
@@ -73,7 +56,6 @@ st.sidebar.title("Preset Manager")
 preset_list = ["Last Session"] + list(st.session_state.presets.keys())
 selected_preset = st.sidebar.selectbox("Select Preset", preset_list, label_visibility="collapsed")
 
-# Load Button
 if st.sidebar.button("Load Preset", use_container_width=True):
     if selected_preset == "Last Session":
         loaded = am.load_settings()
@@ -84,7 +66,6 @@ if st.sidebar.button("Load Preset", use_container_width=True):
         st.session_state.draw_params = st.session_state.presets[selected_preset].copy()
         st.rerun()
 
-# Save Button
 if st.sidebar.button("Save Current as Preset", use_container_width=True):
     slot_no = len(st.session_state.presets) + 1
     p_name = f"#{slot_no} {st.session_state.draw_params['shape_type']}"
@@ -93,20 +74,16 @@ if st.sidebar.button("Save Current as Preset", use_container_width=True):
     st.rerun()
 
 st.sidebar.markdown("---")
-
-# Reset Button
 reset_btn = st.sidebar.button("Reset to Factory Defaults", use_container_width=True)
-
 st.sidebar.markdown("---")
 
 # --- 2. CORE Settings Section ---
 st.sidebar.title("CORE Settings")
-
-# Apply Button
 apply_btn = st.sidebar.button("Apply Changes", type="primary", use_container_width=True)
 
 # --- Tabs ---
 tab1, tab2, tab3 = st.sidebar.tabs(["Shape", "Color & Light", "View & Cut"])
+
 with tab1:
     st.header("■ Current Shape")
     ui_shape = st.selectbox("Type", ["Torus", "Sphere", "Cylinder"], 
@@ -128,10 +105,10 @@ with tab1:
 
 with tab2:
     with st.expander("Singularity (Big Bang)", expanded=False):
-        ui_show_bb = st.checkbox("Show", value=st.session_state.draw_params['show_bb'])
-        ui_bb_shape = st.selectbox("Marker", ["circle", "square", "diamond", "cross", "x"], index=0)
-        ui_bb_size = st.number_input("Size", value=float(st.session_state.draw_params['bb_size']))
-        ui_bb_d, ui_bb_p, _ = ui.color_ui("Singularity", "bb", PALETTE, default_hex=st.session_state.draw_params['bb_color'])
+        ui_show_bb = st.checkbox("Show", value=st.session_state.draw_params.get('show_bb', True))
+        # マーカー形状選択は廃止し、サイズ調整のみにする
+        ui_bb_size = st.number_input("Scale (Size)", value=float(st.session_state.draw_params.get('bb_size', 10.0)), step=0.5)
+        ui_bb_d, ui_bb_p, _ = ui.color_ui("Singularity", "bb", PALETTE, default_hex=st.session_state.draw_params.get('bb_color', '#FFFF00'))
 
     with st.expander("Surface Skin", expanded=True):
         ui_show_surf = st.checkbox("Show Surface", value=st.session_state.draw_params['show_surf'])
@@ -147,7 +124,6 @@ with tab2:
 
     with st.expander("Background", expanded=True):
         ui_bg_d, ui_bg_p, _ = ui.color_ui("Background", "bg", PALETTE, default_hex=st.session_state.draw_params['bg_color'])
-
 with tab3:
     with st.expander("Section Cut", expanded=True):
         ui_w_st = ui.synced_ui("Wire Start", "w_st", st.session_state.draw_params['wire_start'], 0, 360)
@@ -174,7 +150,7 @@ if apply_btn:
         'shape_type': ui_shape, 'R_base': ui_R, 'r_tube': ui_r, 'h_cylinder': ui_h,
         'outer_scale': ui_out_sc, 'inner_scale': ui_in_sc,
         'segments_main': ui_seg_m, 'segments_sub': ui_seg_s, 'smoothness': ui_smooth,
-        'bg_color': ui_bg_p, 'show_bb': ui_show_bb, 'bb_shape': ui_bb_shape, 'bb_size': ui_bb_size, 'bb_color': ui_bb_p,
+        'bg_color': ui_bg_p, 'show_bb': ui_show_bb, 'bb_size': ui_bb_size, 'bb_color': ui_bb_p,
         'show_surf': ui_show_surf, 'surf_color': ui.resolve_color(ui_sf_d, ui_sf_p, ui_sf_sync, ui_bg_p, PALETTE), 'surf_opacity': ui_sf_op,
         'outer_color': ui.resolve_color(ui_out_d, ui_out_p, ui_out_sync, ui_bg_p, PALETTE), 'lw_outer': ui_lw_out,
         'inner_color': ui.resolve_color(ui_in_d, ui_in_p, ui_in_sync, ui_bg_p, PALETTE), 'lw_inner': ui_lw_in,
@@ -249,9 +225,19 @@ try:
     add_wire_trace(P['inner_scale'], P['inner_color'], P['lw_inner'], P['wire_start'], P['wire_span'])
     add_wire_trace(P['outer_scale'], P['outer_color'], P['lw_outer'], P['wire_start'], P['wire_span'])
 
-    if P['show_bb']:
-        fig.add_trace(go.Scatter3d(x=[0], y=[0], z=[0], mode='markers', 
-                                   marker=dict(size=P['bb_size'], color=P['bb_color'], symbol=P['bb_shape'])))
+    # --- Singularity (Updated: Real 3D Sphere) ---
+    if P.get('show_bb', True):
+        # bb_size (10.0など) を適切な3Dスケールに変換。ここでは0.05倍する
+        bb_scale = float(P.get('bb_size', 10.0)) * 0.05
+        # Sphereの座標を取得
+        sm_bb = 20 # 密度は低めでOK
+        us_bb, vs_bb = np.meshgrid(np.linspace(0, 2*np.pi, sm_bb), np.linspace(0, np.pi, sm_bb))
+        # geometry_engine を再利用して球体を作成
+        bx, by, bz = ge.get_coords({'R_base': 1.0}, "Sphere", bb_scale, us_bb, vs_bb)
+        # 回転行列は適用せず、常に中心に配置
+        fig.add_trace(go.Surface(x=bx, y=by, z=bz,
+                                 surfacecolor=np.ones_like(bx), colorscale=[[0, P['bb_color']], [1, P['bb_color']]],
+                                 showscale=False, opacity=1.0, hoverinfo='none'))
 
     # Camera Setup
     eye = dict(x=1.6, y=1.6, z=1.6)
