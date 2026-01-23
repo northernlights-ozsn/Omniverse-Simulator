@@ -22,27 +22,38 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- Default Params ---
+# --- Default Params (Updated) ---
 DEFAULTS = {
     'shape_type': 'Torus', 'R_base': 10.0, 'r_tube': 3.0, 'h_cylinder': 20.0,
     'outer_scale': 1.0, 'inner_scale': 0.95,
     'segments_main': 24.0, 'segments_sub': 18.0, 'smoothness': 100.0,
-    'bg_color': '#000000', 'show_bb': True, 'bb_size': 10.0, 'bb_color': '#FFFF00', # bb_shapeは廃止(球体固定のため)
+    'bg_color': '#000000', 'show_bb': True, 'bb_size': 10.0, 'bb_color': '#FFFF00',
     'show_surf': True, 'surf_color': '#00A2E8', 'surf_opacity': 0.3,
-    'outer_color': '#00A2E8', 'lw_outer': 1.2, 'inner_color': '#FFAEC9', 'lw_inner': 1.0,
+    # New: Wireframe Toggles
+    'show_out_wire': True, 'outer_color': '#00A2E8', 'lw_outer': 1.2,
+    'show_in_wire': True, 'inner_color': '#FFAEC9', 'lw_inner': 1.0,
     'wire_start': 0.0, 'wire_span': 360.0, 'surf_start': 0.0, 'surf_span': 270.0,
     'camera_mode': 'Overview', 'rot_x': 0.0, 'rot_y': 0.0, 'rot_z': 0.0
 }
 
+# --- Expanded Palette (20 Colors) ---
 PALETTE = {
-    "Black": "#000000", "Dark Gray": "#7F7F7F", "Red": "#ED1C24", "Yellow": "#FFF200", 
-    "Green": "#22B14C", "Turquoise": "#00A2E8", "Indigo": "#3F48CC", "Rose": "#FFAEC9", "White": "#FFFFFF"
+    "Black": "#000000", "Dark Gray": "#7F7F7F", "Dark Red": "#880015", "Red": "#ED1C24",
+    "Orange": "#FF7F27", "Gold": "#FFF200", "Yellow": "#EFE4B0", "Green": "#22B14C",
+    "Turquoise": "#00A2E8", "Indigo": "#3F48CC", "White": "#FFFFFF", "Light Gray": "#C3C3C3",
+    "Brown": "#B97A57", "Rose": "#FFAEC9", "Light Gold": "#FFC90E", "Light Yellow": "#FEF200",
+    "Light Green": "#B5E61D", "Light Blue": "#99D9EA", "Blue Gray": "#7092BE", "Lavender": "#C8BFE7"
 }
 
 # --- State Management ---
 if 'draw_params' not in st.session_state:
     loaded = am.load_settings()
-    st.session_state['draw_params'] = loaded if loaded else DEFAULTS.copy()
+    # 新しいパラメータ(show_out_wire等)が無い場合に備えてデフォルトとマージ
+    current = DEFAULTS.copy()
+    if loaded:
+        current.update(loaded)
+    st.session_state['draw_params'] = current
+
 if 'presets' not in st.session_state:
     st.session_state['presets'] = {}
 
@@ -60,7 +71,9 @@ if st.sidebar.button("Load Preset", use_container_width=True):
     if selected_preset == "Last Session":
         loaded = am.load_settings()
         if loaded:
-            st.session_state.draw_params = loaded
+            current = DEFAULTS.copy()
+            current.update(loaded)
+            st.session_state.draw_params = current
             st.rerun()
     elif selected_preset in st.session_state.presets:
         st.session_state.draw_params = st.session_state.presets[selected_preset].copy()
@@ -106,7 +119,6 @@ with tab1:
 with tab2:
     with st.expander("Singularity (Big Bang)", expanded=False):
         ui_show_bb = st.checkbox("Show", value=st.session_state.draw_params.get('show_bb', True))
-        # マーカー形状選択は廃止し、サイズ調整のみにする
         ui_bb_size = st.number_input("Scale (Size)", value=float(st.session_state.draw_params.get('bb_size', 10.0)), step=0.5)
         ui_bb_d, ui_bb_p, _ = ui.color_ui("Singularity", "bb", PALETTE, default_hex=st.session_state.draw_params.get('bb_color', '#FFFF00'))
 
@@ -116,9 +128,13 @@ with tab2:
         ui_sf_op = ui.synced_ui("Opacity", "sf_op", st.session_state.draw_params['surf_opacity'], 0.0, 1.0, step_s=0.1, step_b=0.01)
 
     with st.expander("Wireframe", expanded=True):
+        # Outer Wire Checkbox
+        ui_show_out = st.checkbox("Show Outer Wire", value=st.session_state.draw_params.get('show_out_wire', True))
         ui_out_d, ui_out_p, ui_out_sync = ui.color_ui("Outer Wire", "out", PALETTE, default_hex=st.session_state.draw_params['outer_color'])
         ui_lw_out = st.number_input("Outer Width", value=float(st.session_state.draw_params['lw_outer']))
         st.markdown("---")
+        # Inner Wire Checkbox
+        ui_show_in = st.checkbox("Show Inner Wire", value=st.session_state.draw_params.get('show_in_wire', True))
         ui_in_d, ui_in_p, ui_in_sync = ui.color_ui("Inner Wire", "in", PALETTE, default_hex=st.session_state.draw_params['inner_color'])
         ui_lw_in = st.number_input("Inner Width", value=float(st.session_state.draw_params['lw_inner']))
 
@@ -146,14 +162,19 @@ if reset_btn:
 
 if apply_btn:
     new_params = st.session_state.draw_params.copy()
+    # 背景色のロジック修正: ui.resolve_color を使用してドロップダウンの値を反映させる
+    resolved_bg = ui.resolve_color(ui_bg_d, ui_bg_p, False, None, PALETTE)
+    
     new_params.update({
         'shape_type': ui_shape, 'R_base': ui_R, 'r_tube': ui_r, 'h_cylinder': ui_h,
         'outer_scale': ui_out_sc, 'inner_scale': ui_in_sc,
         'segments_main': ui_seg_m, 'segments_sub': ui_seg_s, 'smoothness': ui_smooth,
-        'bg_color': ui_bg_p, 'show_bb': ui_show_bb, 'bb_size': ui_bb_size, 'bb_color': ui_bb_p,
-        'show_surf': ui_show_surf, 'surf_color': ui.resolve_color(ui_sf_d, ui_sf_p, ui_sf_sync, ui_bg_p, PALETTE), 'surf_opacity': ui_sf_op,
-        'outer_color': ui.resolve_color(ui_out_d, ui_out_p, ui_out_sync, ui_bg_p, PALETTE), 'lw_outer': ui_lw_out,
-        'inner_color': ui.resolve_color(ui_in_d, ui_in_p, ui_in_sync, ui_bg_p, PALETTE), 'lw_inner': ui_lw_in,
+        'bg_color': resolved_bg, 'show_bb': ui_show_bb, 'bb_size': ui_bb_size, 'bb_color': ui_bb_p,
+        'show_surf': ui_show_surf, 'surf_color': ui.resolve_color(ui_sf_d, ui_sf_p, ui_sf_sync, resolved_bg, PALETTE), 'surf_opacity': ui_sf_op,
+        'show_out_wire': ui_show_out, # New
+        'outer_color': ui.resolve_color(ui_out_d, ui_out_p, ui_out_sync, resolved_bg, PALETTE), 'lw_outer': ui_lw_out,
+        'show_in_wire': ui_show_in, # New
+        'inner_color': ui.resolve_color(ui_in_d, ui_in_p, ui_in_sync, resolved_bg, PALETTE), 'lw_inner': ui_lw_in,
         'wire_start': ui_w_st, 'wire_span': ui_w_sp, 'surf_start': ui_s_st, 'surf_span': ui_s_sp,
         'camera_mode': ui_cam, 'rot_x': ui_rx, 'rot_y': ui_ry, 'rot_z': ui_rz
     })
@@ -222,19 +243,18 @@ try:
                 rx, ry, rz = ge.apply_rot(x, y, z, rm)
                 fig.add_trace(go.Scatter3d(x=rx, y=ry, z=rz, mode='lines', line=dict(color=color, width=width), showlegend=False))
 
-    add_wire_trace(P['inner_scale'], P['inner_color'], P['lw_inner'], P['wire_start'], P['wire_span'])
-    add_wire_trace(P['outer_scale'], P['outer_color'], P['lw_outer'], P['wire_start'], P['wire_span'])
+    # Updated: Checkbox flags
+    if P.get('show_in_wire', True):
+        add_wire_trace(P['inner_scale'], P['inner_color'], P['lw_inner'], P['wire_start'], P['wire_span'])
+    
+    if P.get('show_out_wire', True):
+        add_wire_trace(P['outer_scale'], P['outer_color'], P['lw_outer'], P['wire_start'], P['wire_span'])
 
-    # --- Singularity (Updated: Real 3D Sphere) ---
     if P.get('show_bb', True):
-        # bb_size (10.0など) を適切な3Dスケールに変換。ここでは0.05倍する
         bb_scale = float(P.get('bb_size', 10.0)) * 0.05
-        # Sphereの座標を取得
-        sm_bb = 20 # 密度は低めでOK
+        sm_bb = 20
         us_bb, vs_bb = np.meshgrid(np.linspace(0, 2*np.pi, sm_bb), np.linspace(0, np.pi, sm_bb))
-        # geometry_engine を再利用して球体を作成
         bx, by, bz = ge.get_coords({'R_base': 1.0}, "Sphere", bb_scale, us_bb, vs_bb)
-        # 回転行列は適用せず、常に中心に配置
         fig.add_trace(go.Surface(x=bx, y=by, z=bz,
                                  surfacecolor=np.ones_like(bx), colorscale=[[0, P['bb_color']], [1, P['bb_color']]],
                                  showscale=False, opacity=1.0, hoverinfo='none'))
